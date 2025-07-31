@@ -14,7 +14,7 @@ const TELEGRAM_CHAT_ID = '5018443124';
 const LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=';
 
 // Обработчик GET запросов
-app.get('/api', async (req, res) => {
+app.get('/', async (req, res) => {
   try {
     // Получаем данные из query-параметров
     const queryData = req.query;
