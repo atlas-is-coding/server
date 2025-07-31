@@ -15,6 +15,25 @@ const IPINFO_TOKEN = '717875db282daa'; // Получите на ipinfo.io
 
 const LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=';
 
+// Middleware для обработки CORS
+app.use((req, res, next) => {
+  // Разрешаем запросы с любых источников (можно заменить на конкретный домен)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  // Разрешаем необходимые методы
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  
+  // Разрешаем необходимые заголовки
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Продолжаем обработку запроса
+  next();
+});
+
+// Обработчик OPTIONS для предварительных запросов
+app.options('/api/logo.png', (req, res) => {
+  res.status(200).end();
+});
 // Обработчик GET запросов
 app.get('/', async (req, res) => {
   try {
