@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 
 // Обработчик OPTIONS для предварительных запросов
-app.options('/api/logo.png', (req, res) => {
+app.options('/', (req, res) => {
   res.status(200).end();
 });
 // Обработчик GET запросов
