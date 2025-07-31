@@ -13,28 +13,23 @@ const TELEGRAM_CHAT_ID = '5018443124';
 
 const LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=';
 
-// Обработка CORS (предзапрос OPTIONS)
-app.options('/', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.status(200).end();
-});
-
-// Основной обработчик POST
-app.post('/', async (req, res) => {
+// Обработчик GET запросов
+app.get('/api', async (req, res) => {
   try {
-    // Настройка CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
+    // Получаем данные из query-параметров
+    const queryData = req.query;
     const userIp = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    console.log('POST request from:', userIp, 'data:', req.body);
 
-    await sendToTelegram(userIp, req.body);
+    console.log('GET request from:', userIp, 'data:', queryData);
 
+    // Отправляем данные в Telegram
+    await sendToTelegram(userIp, queryData);
+
+    // Отправляем изображение
     const imageBuffer = Buffer.from(LOGO_BASE64, 'base64');
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Length', imageBuffer.length);
+    res.setHeader('Cache-Control', 'no-cache'); // Отключаем кэширование
     res.status(200).send(imageBuffer);
 
   } catch (error) {
@@ -43,26 +38,23 @@ app.post('/', async (req, res) => {
   }
 });
 
-// Обработчик для всех остальных методов
-app.all('/', (req, res) => {
-  res.setHeader('Allow', 'POST, OPTIONS');
-  res.status(405).send('Method Not Allowed');
-});
-
 // Функция отправки в Telegram
 // @ts-ignore
 async function sendToTelegram(ip, data) {
   try {
-    const message = `🖼️ Запрос логотипа\nIP: ${ip}\nДанные: ${JSON.stringify(data)}`;
+    const message = `🌐 GET запрос логотипа\n\n` +
+                   `🖥️ IP: ${ip}\n` +
+                   `📊 Данные: ${JSON.stringify(data, null, 2)}\n` +
+                   `🔗 Referer: ${data.ref || 'не указан'}`;
+
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
-      text: message
+      text: message,
+      parse_mode: 'Markdown'
     });
   } catch (error) {
-    console.error('Telegram error:', error);
+    console.error('Ошибка Telegram:', error);
   }
 }
-
-app.listen(3000, () => console.log("Server ready on port 3000."));
 
 export default app;
