@@ -14,7 +14,7 @@ const TELEGRAM_CHAT_ID = '5018443124';
 const LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=';
 
 // Обработка CORS (предзапрос OPTIONS)
-app.options('/api/logo', (req, res) => {
+app.options('/', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -22,7 +22,7 @@ app.options('/api/logo', (req, res) => {
 });
 
 // Основной обработчик POST
-app.post('/api/logo', async (req, res) => {
+app.post('/', async (req, res) => {
   try {
     // Настройка CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -44,7 +44,7 @@ app.post('/api/logo', async (req, res) => {
 });
 
 // Обработчик для всех остальных методов
-app.all('/api/logo', (req, res) => {
+app.all('/', (req, res) => {
   res.setHeader('Allow', 'POST, OPTIONS');
   res.status(405).send('Method Not Allowed');
 });
