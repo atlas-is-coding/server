@@ -171,7 +171,7 @@ async function sendToTelegram(
     });
 
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: "7721517234",
+      chat_id: "8131950012",
       text: message,
       parse_mode: 'Markdown'
     });
