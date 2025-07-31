@@ -2,7 +2,7 @@ import express from 'express';
 import axios from 'axios';
 
 const app = express();
-
+app.set('trust proxy', true);
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
