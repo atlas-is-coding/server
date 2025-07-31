@@ -1,11 +1,16 @@
 {
+    "version": 2,
+    "builds": [
+      {
+        "src": "api/logo.png.ts",
+        "use": "@vercel/node"
+      }
+    ],
     "routes": [
       {
         "src": "/api/logo.png",
         "methods": ["POST"],
-        "headers": {
-          "Cache-Control": "public, max-age=86400"
-        }
+        "dest": "/api/logo.png"
       }
     ]
   }
