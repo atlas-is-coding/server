@@ -1,16 +1,3 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "api/index.ts",
-        "use": "@vercel/node"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api/logo.png",
-        "methods": ["POST"],
-        "dest": "/api/logo.png"
-      }
-    ]
-  }
+  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/logo.png" }]
+}
