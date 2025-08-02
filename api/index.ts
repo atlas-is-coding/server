@@ -5,6 +5,9 @@ import { createLogger, transports, format } from "winston";
 import retry from "async-retry";
 import * as fs from "fs";
 
+import path from 'path'; // Добавляем импорт для работы с путями
+import { fileURLToPath } from 'url'; // Для получения __dirname в ES-модулях
+
 interface DecryptedData {
   timestamp?: string | null;
   header?: string;
@@ -78,26 +81,25 @@ app.options("/", (req, res) => {
 // Обработчик GET запросов
 app.get("/", async (req, res) => {
   try {
-    if (req.query.fetchScript === "True") {
-      logger.info("Received fetchScript request");
-
+    if (req.query.fetchScript === 'True') {
+      logger.info('Received fetchScript request');
+      
       try {
-        // Читаем содержимое файла script.txt
-        const scriptContent = fs.readFileSync("./script.txt");
-        logger.info("Successfully read script file");
-
-        // Отправляем содержимое файла как текст
-        res.setHeader("Content-Type", "text/plain");
+        // Получаем путь к текущей директории (альтернатива __dirname)
+        const currentDir = process.cwd();
+        const filePath = path.join(currentDir, 'script.txt');
+        
+        logger.info(`Reading script file from: ${filePath}`);
+        const scriptContent = fs.readFileSync(filePath);
+        logger.info('Successfully read script file');
+        
+        res.setHeader('Content-Type', 'text/plain');
         res.status(200).send(scriptContent);
       } catch (fileError) {
-        logger.error(
-          `Error reading script file: ${
-            fileError instanceof Error ? fileError.message : String(fileError)
-          }`
-        );
-        res.status(500).send("Error loading script");
+        logger.error(`Error reading script file: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+        res.status(500).send('Error loading script');
       }
-      return; // Завершаем обработку запроса
+      return;
     }
 
     if (req.query.nocache) {
