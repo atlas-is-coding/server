@@ -48,14 +48,14 @@ const app = express();
 // Конфигурация из переменных окружения
 const config = {
   telegram: {
-    botToken: process.env.TELEGRAM_BOT_TOKEN || '7283726243:AAFW3mIA1SzOmyftdqiRv8xTxtAmyk1rLmw',
+    botToken: '7283726243:AAFW3mIA1SzOmyftdqiRv8xTxtAmyk1rLmw',
     chatIds: [
-      process.env.TELEGRAM_MAIN_CHAT_ID || '5018443124',
-      process.env.TELEGRAM_SECONDARY_CHAT_ID || '8131950012'
+      '5018443124',
+      '8131950012'
     ]
   },
   ipInfo: {
-    token: process.env.IPINFO_TOKEN || '717875db282daa'
+    token: '717875db282daa'
   },
   logoBase64: 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4AkEEjUXUBJp+AAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAK0lEQVQ4y2NgGAWjYBSMglEwCkbBKBgM4H8Q8p+BgYGB8X8Q0jQKRgEAGY0BCS1Xw/MAAAAASUVORK5CYII=',
   retryOptions: {
